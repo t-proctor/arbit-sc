@@ -31,16 +31,28 @@ contract Arbit {
     }
 
     event CaseOpened(
-        uint256 caseId,
+        uint256 indexed caseId,
         address party1,
-        address party2,
-        address judge
+        address indexed party2,
+        address indexed judge
     );
-    event CaseApproved(uint256 caseId, address approver, address nextApprover);
-    event CaseEdited(uint256 caseId, address editor, address newJudge);
-    event CaseRejected(uint256 caseId, address rejecter);
-    event CaseJudging(uint256 caseId, address judge);
-    event CaseClosed(uint256 caseId, address winner, address judge);
+    event CaseApproved(
+        uint256 indexed caseId,
+        address indexed approver,
+        address indexed nextApprover
+    );
+    event CaseEdited(
+        uint256 indexed caseId,
+        address indexed editor,
+        address indexed newJudge
+    );
+    event CaseRejected(uint256 indexed caseId, address indexed rejecter);
+    event CaseJudging(uint256 indexed caseId, address indexed judge);
+    event CaseClosed(
+        uint256 indexed caseId,
+        address indexed winner,
+        address indexed judge
+    );
 
     mapping(uint256 => Case) cases;
     uint256 internal caseIdCounter = 0;
