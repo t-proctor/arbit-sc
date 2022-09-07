@@ -36,32 +36,10 @@ contract Arbit {
         address party2,
         address judge
     );
-    event CaseStarted(
-        uint256 caseId,
-        address party1,
-        address party2,
-        address judge
-    );
-    // might be unnecessary
-    event CaseApproved(
-        uint256 caseId,
-        address party1,
-        address party2,
-        address judge
-    );
-    event CaseRejected(
-        uint256 caseId,
-        address party1,
-        address party2,
-        address judge
-    );
-    event CaseClosed(
-        uint256 caseId,
-        address party1,
-        address party2,
-        address judge,
-        address winner
-    );
+    event CaseApproved(uint256 caseId, address approver, address nextApprover);
+    event CaseEdited(uint256 caseId, address editor, address newJudge);
+    event CaseRejected(uint256 caseId, address rejecter);
+    event CaseJudging(uint256 caseId, address judge);
     event CaseClosed(uint256 caseId, address winner, address judge);
 
     mapping(uint256 => Case) cases;
@@ -99,11 +77,11 @@ contract Arbit {
     }
     modifier isDecisionMaker(uint256 caseId) {
         if (
-            (cases[caseId].decisionMaker != DecisionMaker.Judge &&
+            (cases[caseId].decisionMaker == DecisionMaker.Judge &&
                 cases[caseId].judge != msg.sender) ||
-            (cases[caseId].decisionMaker != DecisionMaker.Party1 &&
+            (cases[caseId].decisionMaker == DecisionMaker.Party1 &&
                 cases[caseId].party1 != msg.sender) ||
-            (cases[caseId].decisionMaker != DecisionMaker.Party2 &&
+            (cases[caseId].decisionMaker == DecisionMaker.Party2 &&
                 cases[caseId].party2 != msg.sender)
         ) {
             revert notDecisionMaker();
@@ -126,20 +104,8 @@ contract Arbit {
         emit CaseOpened(caseId, case_.party1, case_.party2, case_.judge);
         caseIdCounter++;
         case_.decisionMaker = DecisionMaker.Party2;
-
         return caseId;
     }
-
-    // function startCase(uint256 caseId, address judge) public {
-    //     Case storage case_ = cases[caseId];
-    //     require(msg.sender == case_.party2, "Only party2 can start a case");
-    //     require(
-    //         case_.decisionMaker == DecisionMaker.Party1,
-    //         "Case is already started"
-    //     );
-    //     case_.decisionMaker = DecisionMaker.Party2;
-    //     emit CaseStarted(caseId, case_.party1, case_.party2, case_.judge);
-    // }
 
     function closeCase(uint256 caseId, address caseWinner)
         public
@@ -149,16 +115,14 @@ contract Arbit {
         Case storage case_ = cases[caseId];
         case_.status = Status.Closed;
         case_.winner = caseWinner;
-        emit CaseClosed(
-            caseId,
-            case_.party1,
-            case_.party2,
-            case_.judge,
-            caseWinner
-        );
+        emit CaseClosed(caseId, case_.winner, case_.judge);
     }
 
-    function editCase(uint256 caseId, address newJudge) public isParty(caseId) {
+    function editCase(uint256 caseId, address newJudge)
+        public
+        isParty(caseId)
+        isDecisionMaker(caseId)
+    {
         Case storage case_ = cases[caseId];
         case_.approvals[msg.sender] = true;
         if (case_.decisionMaker == DecisionMaker.Party1) {
@@ -169,39 +133,31 @@ contract Arbit {
             case_.approvals[case_.party1] = false;
         }
         case_.judge = newJudge;
+        case_.approvals[case_.judge] = false;
+        emit CaseEdited(caseId, msg.sender, case_.judge);
     }
 
-    function approveCase(uint256 caseId) public isJudge(caseId) {
+    function approveCase(uint256 caseId)
+        public
+        isJudgeOrParty(caseId)
+        isDecisionMaker(caseId)
+    {
         Case storage case_ = cases[caseId];
         case_.approvals[msg.sender] = true;
-        // might not need this
-        emit CaseApproved(caseId, case_.party1, case_.party2, case_.judge);
-    }
-
-    // changing judge should reset approval
-    // function changeJudge(uint256 caseId, address newJudge)
-    //     public
-    //     isParty(caseId)
-    // {
-    //     Case storage case_ = cases[caseId];
-    //     case_.judge = newJudge;
-    // }
-
-    function sendToJudge(uint256 caseId) internal isParty(caseId) {
-        Case storage case_ = cases[caseId];
+        address nextApprover = address(0x0);
         if (case_.approvals[case_.party1] && case_.approvals[case_.party2]) {
-            // case_.judge = judge;
             case_.decisionMaker = DecisionMaker.Judge;
-            emit CaseApproved(caseId, case_.party1, case_.party2, case_.judge);
+            nextApprover = case_.judge;
+        } else if (case_.decisionMaker == DecisionMaker.Party1) {
+            case_.decisionMaker = DecisionMaker.Party2;
+            nextApprover = case_.party2;
+        } else {
+            case_.decisionMaker = DecisionMaker.Party1;
+            nextApprover = case_.party1;
         }
+        emit CaseApproved(caseId, msg.sender, nextApprover);
     }
 
-    // function isApprovedByBoth(uint256 caseId) internal view returns (bool) {
-    //     Case storage case_ = cases[caseId];
-    //     return case_.approvals[case_.party1] && case_.approvals[case_.party2];
-    // }
-
-    // isDecisionMakerr may not be neccesary
     function judgeCase(uint256 caseId)
         public
         isJudge(caseId)
@@ -216,13 +172,18 @@ contract Arbit {
             case_.status = Status.Judging;
             case_.approvals[case_.judge] = true;
         }
+        emit CaseJudging(caseId, msg.sender);
     }
 
-    function rejectCase(uint256 caseId) internal isJudgeOrParty(caseId) {
+    function rejectCase(uint256 caseId)
+        public
+        isJudgeOrParty(caseId)
+        isDecisionMaker(caseId)
+    {
         Case storage case_ = cases[caseId];
         if (case_.status == Status.Open) {
             case_.status = Status.Rejected;
-            emit CaseRejected(caseId, case_.party1, case_.party2, case_.judge);
+            emit CaseRejected(caseId, msg.sender);
         }
     }
 
