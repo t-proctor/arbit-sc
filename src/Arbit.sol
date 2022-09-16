@@ -24,9 +24,12 @@ contract Arbit {
         address party1;
         address party2;
         address judge;
+        string description;
+        string[] tags;
         DecisionMaker decisionMaker;
         mapping(address => bool) approvals;
         Status status;
+        string caseRuling;
         address winner;
     }
 
@@ -34,7 +37,9 @@ contract Arbit {
         uint256 indexed caseId,
         address party1,
         address indexed party2,
-        address indexed judge
+        address indexed judge,
+        string description,
+        string[] tags
     );
     event CaseApproved(
         uint256 indexed caseId,
@@ -44,14 +49,16 @@ contract Arbit {
     event CaseEdited(
         uint256 indexed caseId,
         address indexed editor,
-        address indexed newJudge
+        address indexed newJudge,
+        string description,
+        string[] tags
     );
     event CaseRejected(uint256 indexed caseId, address indexed rejecter);
     event CaseJudging(uint256 indexed caseId, address indexed judge);
     event CaseClosed(
         uint256 indexed caseId,
         address indexed winner,
-        address indexed judge
+        string indexed caseRuling
     );
 
     mapping(uint256 => Case) cases;
@@ -101,40 +108,54 @@ contract Arbit {
         _;
     }
 
-    function openCase(address party2, address judge)
-        public
-        returns (uint256 caseId)
-    {
+    function openCase(
+        address party2,
+        address judge,
+        string memory description,
+        string[] memory tags
+    ) public returns (uint256 caseId) {
         caseId = caseIdCounter;
         Case storage case_ = cases[caseId];
         case_.party1 = msg.sender;
         case_.party2 = party2;
         case_.judge = judge;
+        case_.description = description;
+        case_.tags = tags;
+        case_.caseRuling = "";
         case_.approvals[msg.sender] = true;
         case_.status = Status.Open;
         case_.winner = address(0x0);
-        emit CaseOpened(caseId, case_.party1, case_.party2, case_.judge);
+        emit CaseOpened(
+            caseId,
+            case_.party1,
+            case_.party2,
+            case_.judge,
+            description,
+            tags
+        );
         caseIdCounter++;
         case_.decisionMaker = DecisionMaker.Party2;
         return caseId;
     }
 
-    function closeCase(uint256 caseId, address caseWinner)
-        public
-        isJudge(caseId)
-        isValidWinner(caseId, caseWinner)
-    {
+    function closeCase(
+        uint256 caseId,
+        address caseWinner,
+        string memory caseRuling
+    ) public isJudge(caseId) isValidWinner(caseId, caseWinner) {
         Case storage case_ = cases[caseId];
         case_.status = Status.Closed;
         case_.winner = caseWinner;
-        emit CaseClosed(caseId, case_.winner, case_.judge);
+        case_.caseRuling = caseRuling;
+        emit CaseClosed(caseId, case_.winner, case_.caseRuling);
     }
 
-    function editCase(uint256 caseId, address newJudge)
-        public
-        isParty(caseId)
-        isDecisionMaker(caseId)
-    {
+    function editCase(
+        uint256 caseId,
+        address newJudge,
+        string memory description,
+        string[] memory tags
+    ) public isParty(caseId) isDecisionMaker(caseId) {
         Case storage case_ = cases[caseId];
         case_.approvals[msg.sender] = true;
         if (case_.decisionMaker == DecisionMaker.Party1) {
@@ -144,9 +165,11 @@ contract Arbit {
             case_.decisionMaker = DecisionMaker.Party1;
             case_.approvals[case_.party1] = false;
         }
+        case_.description = description;
+        case_.tags = tags;
         case_.judge = newJudge;
         case_.approvals[case_.judge] = false;
-        emit CaseEdited(caseId, msg.sender, case_.judge);
+        emit CaseEdited(caseId, msg.sender, case_.judge, description, tags);
     }
 
     function approveCase(uint256 caseId)
@@ -206,6 +229,9 @@ contract Arbit {
             address party1,
             address party2,
             address judge,
+            string memory caseDescription,
+            string[] memory tags,
+            string memory caseRuling,
             address winner,
             Status,
             DecisionMaker,
@@ -219,6 +245,9 @@ contract Arbit {
             case_.party1,
             case_.party2,
             case_.judge,
+            case_.description,
+            case_.tags,
+            case_.caseRuling,
             case_.winner,
             case_.status,
             case_.decisionMaker,
