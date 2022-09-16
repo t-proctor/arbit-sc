@@ -21,6 +21,7 @@ contract Arbit {
     }
 
     struct Case {
+        string caseName;
         address party1;
         address party2;
         address judge;
@@ -35,6 +36,7 @@ contract Arbit {
 
     event CaseOpened(
         uint256 indexed caseId,
+        string caseName,
         address party1,
         address indexed party2,
         address indexed judge,
@@ -48,6 +50,7 @@ contract Arbit {
     );
     event CaseEdited(
         uint256 indexed caseId,
+        string caseName,
         address indexed editor,
         address indexed newJudge,
         string description,
@@ -112,7 +115,8 @@ contract Arbit {
         address party2,
         address judge,
         string memory description,
-        string[] memory tags
+        string[] memory tags,
+        string memory caseName
     ) public returns (uint256 caseId) {
         caseId = caseIdCounter;
         Case storage case_ = cases[caseId];
@@ -125,8 +129,10 @@ contract Arbit {
         case_.approvals[msg.sender] = true;
         case_.status = Status.Open;
         case_.winner = address(0x0);
+        case_.caseName = caseName;
         emit CaseOpened(
             caseId,
+            caseName,
             case_.party1,
             case_.party2,
             case_.judge,
@@ -154,7 +160,8 @@ contract Arbit {
         uint256 caseId,
         address newJudge,
         string memory description,
-        string[] memory tags
+        string[] memory tags,
+        string memory caseName
     ) public isParty(caseId) isDecisionMaker(caseId) {
         Case storage case_ = cases[caseId];
         case_.approvals[msg.sender] = true;
@@ -168,8 +175,16 @@ contract Arbit {
         case_.description = description;
         case_.tags = tags;
         case_.judge = newJudge;
+        case_.caseName = caseName;
         case_.approvals[case_.judge] = false;
-        emit CaseEdited(caseId, msg.sender, case_.judge, description, tags);
+        emit CaseEdited(
+            caseId,
+            caseName,
+            msg.sender,
+            case_.judge,
+            description,
+            tags
+        );
     }
 
     function approveCase(uint256 caseId)
@@ -226,6 +241,7 @@ contract Arbit {
         external
         view
         returns (
+            string memory caseName,
             address party1,
             address party2,
             address judge,
@@ -236,12 +252,12 @@ contract Arbit {
             Status,
             DecisionMaker,
             bool approvedByParty1,
-            bool approvedByParty2,
-            bool approvedByJudge
+            bool approvedByParty2
         )
     {
         Case storage case_ = cases[caseId];
         return (
+            case_.caseName,
             case_.party1,
             case_.party2,
             case_.judge,
@@ -252,8 +268,7 @@ contract Arbit {
             case_.status,
             case_.decisionMaker,
             case_.approvals[case_.party1],
-            case_.approvals[case_.party2],
-            case_.approvals[case_.judge]
+            case_.approvals[case_.party2]
         );
     }
 }
