@@ -1,4 +1,4 @@
-Smart contract work for ongoing ETHGlobal Hackathon
+Smart contract work for ETHGlobal Hackathon
 
 
 <img align="right" width="150" height="150" top="100" src="./assets/readme.jpg">
